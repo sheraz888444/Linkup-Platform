@@ -1,42 +1,21 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { storage } from "./mongoStorageWorking";
 import { insertPostSchema, insertCommentSchema } from "@shared/schema";
 import { z } from "zod";
+import { signupController, loginController, getAuthUserController } from "./controllers/authController";
+import { authenticateToken } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
-
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      
-      // Get user stats
-      const followersCount = await storage.getUserFollowersCount(userId);
-      const followingCount = await storage.getUserFollowingCount(userId);
-      
-      res.json({
-        ...user,
-        followersCount,
-        followingCount,
-      });
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+  app.post('/api/auth/signup', signupController);
+  app.post('/api/auth/login', loginController);
+  app.get('/api/auth/user', authenticateToken, getAuthUserController);
 
   // Update user profile
-  app.put('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.put('/api/auth/user', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const { bio, title } = req.body;
       
       const updatedUser = await storage.upsertUser({
@@ -54,9 +33,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Posts routes
-  app.get('/api/posts', isAuthenticated, async (req: any, res) => {
+  app.get('/api/posts', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.user?.userId;
       const posts = await storage.getPosts(userId);
       res.json(posts);
     } catch (error) {
@@ -65,9 +44,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/posts/:id', isAuthenticated, async (req: any, res) => {
+  app.get('/api/posts/:id', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user?.claims?.sub;
+      const userId = req.user?.userId;
       const postId = req.params.id;
       const post = await storage.getPost(postId, userId);
       
@@ -82,9 +61,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/posts', isAuthenticated, async (req: any, res) => {
+  app.post('/api/posts', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const postData = insertPostSchema.parse({
         ...req.body,
         userId,
@@ -102,9 +81,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/posts/:id', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/posts/:id', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const postId = req.params.id;
       
       const deleted = await storage.deletePost(postId, userId);
@@ -120,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Comments routes
-  app.get('/api/posts/:postId/comments', isAuthenticated, async (req, res) => {
+  app.get('/api/posts/:postId/comments', authenticateToken, async (req, res) => {
     try {
       const postId = req.params.postId;
       const comments = await storage.getPostComments(postId);
@@ -131,9 +110,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/posts/:postId/comments', isAuthenticated, async (req: any, res) => {
+  app.post('/api/posts/:postId/comments', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const postId = req.params.postId;
       
       const commentData = insertCommentSchema.parse({
@@ -154,9 +133,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/comments/:id', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/comments/:id', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const commentId = req.params.id;
       
       const deleted = await storage.deleteComment(commentId, userId);
@@ -172,9 +151,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Like routes
-  app.post('/api/posts/:postId/like', isAuthenticated, async (req: any, res) => {
+  app.post('/api/posts/:postId/like', authenticateToken, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.userId;
       const postId = req.params.postId;
       
       const result = await storage.toggleLike(postId, userId);
@@ -186,9 +165,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Follow routes
-  app.post('/api/users/:userId/follow', isAuthenticated, async (req: any, res) => {
+  app.post('/api/users/:userId/follow', authenticateToken, async (req: any, res) => {
     try {
-      const followerId = req.user.claims.sub;
+      const followerId = req.user.userId;
       const followingId = req.params.userId;
       
       if (followerId === followingId) {
@@ -203,9 +182,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/users/:userId/follow-status', isAuthenticated, async (req: any, res) => {
+  app.get('/api/users/:userId/follow-status', authenticateToken, async (req: any, res) => {
     try {
-      const followerId = req.user.claims.sub;
+      const followerId = req.user.userId;
       const followingId = req.params.userId;
       
       const isFollowing = await storage.isFollowing(followerId, followingId);

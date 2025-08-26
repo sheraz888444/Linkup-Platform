@@ -13,12 +13,13 @@ import {
 import { Link2, Search, Bell, MessageSquare, Home, User, LogOut } from "lucide-react";
 
 export default function Navbar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    logout();
+    setLocation("/");
   };
 
   const handleSearch = (e: React.FormEvent) => {

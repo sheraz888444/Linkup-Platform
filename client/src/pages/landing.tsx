@@ -15,8 +15,8 @@ export default function Landing() {
               </div>
               <span className="text-2xl font-bold text-slate-900">Linkup</span>
             </div>
-            <Button 
-              onClick={() => window.location.href = '/api/login'}
+            <Button
+              onClick={() => window.location.href = '/login'}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
               data-testid="button-login"
             >
@@ -42,9 +42,9 @@ export default function Landing() {
               Share your ideas, discover new perspectives, and build meaningful connections.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                size="lg" 
-                onClick={() => window.location.href = '/api/login'}
+              <Button
+                size="lg"
+                onClick={() => window.location.href = '/signup'}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-lg px-8 py-3"
                 data-testid="button-get-started"
               >
@@ -173,9 +173,9 @@ export default function Landing() {
             Start connecting with like-minded professionals and creators today. 
             Your community is waiting for you.
           </p>
-          <Button 
+          <Button
             size="lg"
-            onClick={() => window.location.href = '/api/login'}
+            onClick={() => window.location.href = '/signup'}
             className="bg-white text-indigo-600 hover:bg-slate-50 text-lg px-8 py-3"
             data-testid="button-join-now"
           >

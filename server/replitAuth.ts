@@ -1,12 +1,23 @@
 import * as client from "openid-client";
 import { Strategy, type VerifyFunction } from "openid-client/passport";
+import dotenv from "dotenv";
 
 import passport from "passport";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
-import connectPg from "connect-pg-simple";
-import { storage } from "./storage";
+import MongoStore from "connect-mongo";
+import { storage } from "./mongoStorageWorking";
+
+// Load environment variables manually if not already loaded
+if (!process.env.REPLIT_DOMAINS) {
+  dotenv.config();
+}
+
+// Load environment variables manually if not already loaded
+if (!process.env.REPLIT_DOMAINS) {
+  require('dotenv').config();
+}
 
 if (!process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
@@ -24,12 +35,10 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
+  const sessionStore = MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI || `mongodb+srv://sheraz:10051100$@cluster0.mongodb.net/linkedin-lead?retryWrites=true&w=majority`,
+    collectionName: "sessions",
+    ttl: sessionTtl / 1000, // MongoStore expects TTL in seconds
   });
   return session({
     secret: process.env.SESSION_SECRET!,
@@ -96,6 +105,21 @@ export async function setupAuth(app: Express) {
       verify,
     );
     passport.use(strategy);
+    
+    // Also create strategy without port for localhost/127.0.0.1
+    if (domain.includes(":")) {
+      const domainWithoutPort = domain.split(":")[0];
+      const strategyWithoutPort = new Strategy(
+        {
+          name: `replitauth:${domainWithoutPort}`,
+          config,
+          scope: "openid email profile offline_access",
+          callbackURL: `https://${domain}/api/callback`,
+        },
+        verify,
+      );
+      passport.use(strategyWithoutPort);
+    }
   }
 
   passport.serializeUser((user: Express.User, cb) => cb(null, user));

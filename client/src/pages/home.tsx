@@ -1,4 +1,5 @@
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/navbar";
