@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { signup, login } from '../auth';
+import { storage } from '../mongoStorageWorking';
 
 export async function signupController(req: Request, res: Response) {
   try {
@@ -20,7 +21,14 @@ export async function signupController(req: Request, res: Response) {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        role: (user as any).role ?? 'user',
+        status: (user as any).status ?? 'active',
+        profileImageUrl: (user as any).profileImageUrl,
+        bio: (user as any).bio,
+        title: (user as any).title,
+        createdAt: (user as any).createdAt,
+        updatedAt: (user as any).updatedAt,
       },
       token
     });
@@ -56,7 +64,14 @@ export async function loginController(req: Request, res: Response) {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        role: (user as any).role ?? 'user',
+        status: (user as any).status ?? 'active',
+        profileImageUrl: (user as any).profileImageUrl,
+        bio: (user as any).bio,
+        title: (user as any).title,
+        createdAt: (user as any).createdAt,
+        updatedAt: (user as any).updatedAt,
       },
       token
     });
@@ -68,8 +83,27 @@ export async function loginController(req: Request, res: Response) {
 
 export async function getAuthUserController(req: Request, res: Response) {
   try {
-    // Return the authenticated user's data
-    res.json(req.user);
+    const userId = (req as any).user?.userId as string | undefined;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({
+      id: user.id,
+      email: user.email,
+      firstName: (user as any).firstName,
+      lastName: (user as any).lastName,
+      role: (user as any).role ?? 'user',
+      status: (user as any).status ?? 'active',
+      profileImageUrl: (user as any).profileImageUrl,
+      bio: (user as any).bio,
+      title: (user as any).title,
+      createdAt: (user as any).createdAt,
+      updatedAt: (user as any).updatedAt,
+    });
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ message: 'Internal server error' });

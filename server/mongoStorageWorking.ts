@@ -10,6 +10,8 @@ interface MongoUser {
   profileImageUrl?: string;
   bio?: string;
   title?: string;
+  role?: 'user' | 'admin';
+  status?: 'active' | 'suspended' | 'banned';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,6 +21,7 @@ interface MongoPost {
   userId: string;
   content: string;
   imageUrl?: string;
+  videoUrl?: string;
   likedBy: string[];
   commentsCount: number;
   createdAt: Date;
@@ -49,6 +52,8 @@ export interface User {
   profileImageUrl?: string;
   bio?: string;
   title?: string;
+  role?: 'user' | 'admin';
+  status?: 'active' | 'suspended' | 'banned';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +66,8 @@ export interface UpsertUser {
   profileImageUrl?: string;
   bio?: string;
   title?: string;
+  role?: 'user' | 'admin';
+  status?: 'active' | 'suspended' | 'banned';
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -70,6 +77,7 @@ export interface Post {
   userId: string;
   content: string;
   imageUrl?: string;
+  videoUrl?: string;
   likesCount: number;
   commentsCount: number;
   createdAt: Date;
@@ -139,6 +147,8 @@ export class MongoStorage implements IStorage {
       profileImageUrl: userData.profileImageUrl,
       bio: userData.bio,
       title: userData.title,
+      role: userData.role ?? 'user',
+      status: userData.status ?? 'active',
       createdAt: userData.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -188,6 +198,7 @@ export class MongoStorage implements IStorage {
       userId: (post as any).userId,
       content: (post as any).content,
       imageUrl: (post as any).imageUrl || null,
+      videoUrl: (post as any).videoUrl || null,
       likesCount: (post as any).likedBy?.length || 0,
       commentsCount: (post as any).commentsCount || 0,
       createdAt: (post as any).createdAt,
@@ -233,6 +244,7 @@ export class MongoStorage implements IStorage {
       userId: (post as any).userId,
       content: (post as any).content,
       imageUrl: (post as any).imageUrl || null,
+      videoUrl: (post as any).videoUrl || null,
       likesCount: (post as any).likedBy?.length || 0,
       commentsCount: (post as any).commentsCount || 0,
       createdAt: (post as any).createdAt,
@@ -250,6 +262,7 @@ export class MongoStorage implements IStorage {
       userId: post.userId,
       content: post.content,
       imageUrl: post.imageUrl || undefined,
+      videoUrl: (post as any).videoUrl || undefined,
       likedBy: [],
       commentsCount: 0,
       createdAt: new Date(),
@@ -262,7 +275,8 @@ export class MongoStorage implements IStorage {
       id: postDoc._id,
       userId: postDoc.userId,
       content: postDoc.content,
-  imageUrl: postDoc.imageUrl || undefined,
+      imageUrl: postDoc.imageUrl || undefined,
+      videoUrl: postDoc.videoUrl || undefined,
       likesCount: 0,
       commentsCount: 0,
       createdAt: postDoc.createdAt,
@@ -462,6 +476,8 @@ export class MongoStorage implements IStorage {
       profileImageUrl: mongoUser.profileImageUrl,
       bio: mongoUser.bio,
       title: mongoUser.title,
+      role: mongoUser.role ?? 'user',
+      status: mongoUser.status ?? 'active',
       createdAt: mongoUser.createdAt,
       updatedAt: mongoUser.updatedAt,
     };

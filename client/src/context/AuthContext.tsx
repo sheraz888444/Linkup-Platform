@@ -126,10 +126,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const data = await response.json() as { user: User; token: string };
       const { user, token } = data;
       
-      // Check if user is admin
-      if (email === 'sheraz' && password === '10051100$') {
-        user.role = 'admin';
-      }
 
       localStorage.setItem('token', token);
       dispatch({ type: 'SET_TOKEN', payload: token });
@@ -141,8 +137,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const signup = async (email: string, password: string, firstName?: string, lastName?: string) => {
+    // Do NOT auto-login on signup. Just create the account.
     dispatch({ type: 'SET_LOADING', payload: true });
-    
     try {
       const response = await apiRequest('POST', '/api/auth/signup', {
         email,
@@ -150,12 +146,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         firstName,
         lastName,
       });
-
-      const data = await response.json() as { user: User; token: string };
-      const { user, token } = data;
-      localStorage.setItem('token', token);
-      dispatch({ type: 'SET_TOKEN', payload: token });
-      dispatch({ type: 'SET_USER', payload: user });
+      // Ensure request succeeded; ignore returned token/user intentionally
+      await response.json();
+      // Stop loading; caller will redirect to login page
+      dispatch({ type: 'SET_LOADING', payload: false });
     } catch (error) {
       dispatch({ type: 'SET_LOADING', payload: false });
       throw error;
@@ -165,6 +159,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     localStorage.removeItem('token');
     dispatch({ type: 'LOGOUT' });
+    // Force redirect to login as default page
+    window.location.href = '/';
   };
 
   const updateUser = (userData: Partial<User>) => {

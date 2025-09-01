@@ -51,7 +51,7 @@ export default function PostCard({ post }: PostCardProps) {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/";
         }, 500);
         return;
       }
@@ -91,7 +91,7 @@ export default function PostCard({ post }: PostCardProps) {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/";
         }, 500);
         return;
       }
@@ -117,10 +117,10 @@ export default function PostCard({ post }: PostCardProps) {
     addCommentMutation.mutate(commentContent.trim());
   };
 
-  const formatTimeAgo = (dateString: string) => {
+  const formatTimeAgo = (input: string | Date) => {
     const now = new Date();
-    const postDate = new Date(dateString);
-    const diffInMinutes = Math.floor((now.getTime() - postDate.getTime()) / (1000 * 60));
+    const d = typeof input === "string" ? new Date(input) : input;
+    const diffInMinutes = Math.floor((now.getTime() - d.getTime()) / (1000 * 60));
     
     if (diffInMinutes < 1) return "now";
     if (diffInMinutes < 60) return `${diffInMinutes}m`;
@@ -129,7 +129,7 @@ export default function PostCard({ post }: PostCardProps) {
   };
 
   return (
-    <Card className="bg-white shadow-sm border border-slate-200 overflow-hidden" data-testid={`card-post-${post.id}`}>
+    <Card className="bg-white dark:bg-zinc-800 shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden" data-testid={`card-post-${post.id}`}>
       <CardContent className="p-6">
         <div className="flex items-start space-x-3">
           <img
@@ -140,22 +140,22 @@ export default function PostCard({ post }: PostCardProps) {
           />
           <div className="flex-1">
             <div className="flex items-center space-x-2">
-              <h3 className="font-semibold text-slate-900" data-testid={`text-username-${post.id}`}>
+              <h3 className="font-semibold text-slate-900 dark:text-zinc-100" data-testid={`text-username-${post.id}`}>
                 {post.user.firstName || post.user.lastName 
                   ? `${post.user.firstName || ''} ${post.user.lastName || ''}`.trim()
                   : 'User'
                 }
               </h3>
               <span className="text-indigo-500">•</span>
-              <span className="text-sm text-slate-500" data-testid={`text-user-title-${post.id}`}>
+              <span className="text-sm text-slate-500 dark:text-zinc-400" data-testid={`text-user-title-${post.id}`}>
                 {post.user.title || 'Member'}
               </span>
               <span className="text-slate-400">•</span>
-              <span className="text-sm text-slate-500" data-testid={`text-post-time-${post.id}`}>
+              <span className="text-sm text-slate-500 dark:text-zinc-400" data-testid={`text-post-time-${post.id}`}>
                 {formatTimeAgo(post.createdAt!)}
               </span>
             </div>
-            <p className="text-slate-600 mt-2 whitespace-pre-wrap" data-testid={`text-post-content-${post.id}`}>
+            <p className="text-slate-600 dark:text-zinc-200 mt-2 whitespace-pre-wrap" data-testid={`text-post-content-${post.id}`}>
               {post.content}
             </p>
           </div>
@@ -185,6 +185,16 @@ export default function PostCard({ post }: PostCardProps) {
             className="w-full h-64 object-cover rounded-lg mt-4"
             data-testid={`img-post-image-${post.id}`}
           />
+        )}
+        {post.videoUrl && (
+          <video
+            controls
+            className="w-full max-h-[420px] rounded-lg mt-4 bg-black"
+            data-testid={`video-post-${post.id}`}
+          >
+            <source src={post.videoUrl} />
+            Your browser does not support the video tag.
+          </video>
         )}
 
         <div className="flex items-center justify-between mt-6">
@@ -236,7 +246,7 @@ export default function PostCard({ post }: PostCardProps) {
 
         {/* Comments Section */}
         {showComments && (
-          <div className="mt-6 pt-6 border-t border-slate-200" data-testid={`comments-section-${post.id}`}>
+          <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-700" data-testid={`comments-section-${post.id}`}>
             {/* Add Comment Form */}
             <form onSubmit={handleSubmitComment} className="flex space-x-3 mb-4">
               <img
@@ -294,17 +304,17 @@ export default function PostCard({ post }: PostCardProps) {
                     />
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium text-sm text-slate-900" data-testid={`text-comment-username-${comment.id}`}>
+                        <span className="font-medium text-sm text-slate-900 dark:text-zinc-100" data-testid={`text-comment-username-${comment.id}`}>
                           {comment.user.firstName || comment.user.lastName 
                             ? `${comment.user.firstName || ''} ${comment.user.lastName || ''}`.trim()
                             : 'User'
                           }
                         </span>
-                        <span className="text-xs text-slate-500" data-testid={`text-comment-time-${comment.id}`}>
+                        <span className="text-xs text-slate-500 dark:text-zinc-400" data-testid={`text-comment-time-${comment.id}`}>
                           {formatTimeAgo(comment.createdAt!)}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 mt-1" data-testid={`text-comment-content-${comment.id}`}>
+                      <p className="text-sm text-slate-700 dark:text-zinc-200 mt-1" data-testid={`text-comment-content-${comment.id}`}>
                         {comment.content}
                       </p>
                     </div>

@@ -44,6 +44,7 @@ export const posts = pgTable("posts", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   content: text("content").notNull(),
   imageUrl: varchar("image_url"),
+  videoUrl: varchar("video_url"),
   likesCount: integer("likes_count").default(0),
   commentsCount: integer("comments_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),

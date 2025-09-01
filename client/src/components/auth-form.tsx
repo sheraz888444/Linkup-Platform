@@ -50,7 +50,7 @@ export function AuthForm({ type }: AuthFormProps) {
           description: "Welcome to NexusLink! Your account has been created successfully.",
         });
       }
-      navigate('/');
+      navigate(type === 'login' ? '/' : '/login');
     } catch (error: any) {
       toast({
         title: type === 'login' ? 'Login Failed' : 'Signup Failed',

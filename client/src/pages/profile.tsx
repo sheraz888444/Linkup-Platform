@@ -1,6 +1,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { User, Mail, Calendar, Edit2, Save, X, Moon, Sun } from "lucide-react";
 
 export default function Profile() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, updateUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -24,6 +24,8 @@ export default function Profile() {
     bio: "",
     title: "",
   });
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   // Initialize form data when user loads
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function Profile() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/";
       }, 500);
       return;
     }
@@ -81,6 +83,46 @@ export default function Profile() {
       });
     },
   });
+
+  const handleAvatarChangeClick = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const onAvatarSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to upload image");
+      }
+      const url = data.url as string;
+      await apiRequest("PUT", "/api/auth/user", { profileImageUrl: url });
+      updateUser({ profileImageUrl: url });
+      toast({
+        title: "Profile photo updated",
+        description: "Your profile picture has been updated successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Upload failed",
+        description: err?.message || "Unable to update profile picture.",
+        variant: "destructive",
+      });
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,13 +163,31 @@ export default function Profile() {
           <div className="lg:col-span-1">
             <Card className="border-slate-200" data-testid="card-profile">
               <CardHeader className="text-center">
-                <div className="relative">
+                <div className="relative text-center">
                   <img
                     src={user.profileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${user.firstName || 'User'} ${user.lastName || ''}`}
                     alt="Profile picture"
-                    className="w-24 h-24 rounded-full object-cover mx-auto mb-4"
+                    className="w-24 h-24 rounded-full object-cover mx-auto mb-2"
                     data-testid="img-avatar"
                   />
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onAvatarSelected}
+                    data-testid="input-avatar-file"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAvatarChangeClick}
+                    disabled={avatarUploading}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-3 rounded-full"
+                    data-testid="button-change-photo"
+                  >
+                    {avatarUploading ? "Uploading..." : "Change Photo"}
+                  </Button>
                 </div>
                 <CardTitle className="text-slate-900" data-testid="text-username">
                   {user.firstName || user.lastName 

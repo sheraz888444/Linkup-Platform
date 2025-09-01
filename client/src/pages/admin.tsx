@@ -73,63 +73,28 @@ export default function AdminDashboard() {
     }
   }, [isAuthenticated, isLoading, user, toast]);
 
-  // Mock data for admin dashboard (in real app, these would come from API)
-  const { data: adminStats } = useQuery({
+  // Admin stats (from API, protected by role)
+  const { data: adminStats } = useQuery<{
+    totalUsers: number;
+    activeUsers: number;
+    suspendedUsers: number;
+    totalPosts: number;
+    flaggedPosts: number;
+    totalGroups: number;
+    totalStories: number;
+  }>({
     queryKey: ["/api/admin/stats"],
     enabled: isAuthenticated && user?.role === 'admin',
-    queryFn: () => ({
-      totalUsers: 1247,
-      activeUsers: 892,
-      suspendedUsers: 23,
-      totalPosts: 5634,
-      flaggedPosts: 12,
-      totalGroups: 89,
-      totalStories: 234
-    })
   });
 
-  const { data: users } = useQuery({
+  const { data: users } = useQuery<AdminUser[]>({
     queryKey: ["/api/admin/users"],
     enabled: isAuthenticated && user?.role === 'admin',
-    queryFn: (): AdminUser[] => [
-      {
-        id: "1",
-        email: "john@example.com",
-        firstName: "John",
-        lastName: "Doe",
-        status: "active",
-        createdAt: "2024-01-15",
-        postsCount: 45,
-        followersCount: 123
-      },
-      {
-        id: "2",
-        email: "jane@example.com",
-        firstName: "Jane",
-        lastName: "Smith",
-        status: "suspended",
-        createdAt: "2024-02-20",
-        postsCount: 12,
-        followersCount: 67
-      }
-    ]
   });
 
-  const { data: posts } = useQuery({
+  const { data: posts } = useQuery<AdminPost[]>({
     queryKey: ["/api/admin/posts"],
     enabled: isAuthenticated && user?.role === 'admin',
-    queryFn: (): AdminPost[] => [
-      {
-        id: "1",
-        content: "This is a sample post content that might need moderation...",
-        userId: "1",
-        user: { firstName: "John", lastName: "Doe", email: "john@example.com" },
-        status: "flagged",
-        createdAt: "2024-03-15",
-        likesCount: 23,
-        commentsCount: 5
-      }
-    ]
   });
 
   const suspendUserMutation = useMutation({
@@ -160,7 +125,7 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-slate-600 dark:text-slate-400">Loading admin dashboard...</p>
@@ -174,7 +139,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
