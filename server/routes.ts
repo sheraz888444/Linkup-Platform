@@ -18,8 +18,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   const storageCfg = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
+    destination: (_req: any, _file: any, cb: any) => cb(null, UPLOAD_DIR),
+    filename: (_req: any, file: any, cb: any) => {
       const ext = path.extname(file.originalname);
       const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
       cb(null, name);
@@ -29,7 +29,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const upload = multer({
     storage: storageCfg,
     limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
-    fileFilter: (_req, file, cb) => {
+    fileFilter: (_req: any, file: any, cb: any) => {
       const allowed = new Set<string>([
         "image/jpeg",
         "image/png",
@@ -73,13 +73,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/auth/user', authenticateToken, async (req: any, res) => {
     try {
       const userId = req.user.userId;
-      const { bio, title, profileImageUrl } = req.body;
+      // Pass all possible profile fields to update
+      const {
+        firstName,
+        lastName,
+        profileImageUrl,
+        bio,
+        title,
+        address,
+        gender,
+        dateOfBirth,
+        phoneNumber,
+        otherLinks
+      } = req.body;
 
       const updatedUser = await storage.upsertUser({
         id: userId,
+        firstName,
+        lastName,
+        profileImageUrl,
         bio,
         title,
-        profileImageUrl,
+        address,
+        gender,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        phoneNumber,
+        otherLinks,
         updatedAt: new Date(),
       });
 
@@ -390,6 +409,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting post:", error);
       res.status(500).json({ message: "Failed to delete post" });
+    }
+  });
+
+  // Stories routes
+  app.get('/api/stories', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const stories = await storage.getStories(userId);
+      res.json(stories);
+    } catch (error) {
+      console.error("Error fetching stories:", error);
+      res.status(500).json({ message: "Failed to fetch stories" });
+    }
+  });
+
+  app.post('/api/stories', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const { content, imageUrl, videoUrl } = req.body;
+
+      if (!content && !imageUrl && !videoUrl) {
+        return res.status(400).json({ message: 'Content, imageUrl, or videoUrl is required' });
+      }
+
+      const story = await storage.createStory({
+        userId,
+        content,
+        imageUrl,
+        videoUrl,
+      });
+
+      res.status(201).json(story);
+    } catch (error) {
+      console.error("Error creating story:", error);
+      res.status(500).json({ message: "Failed to create story" });
+    }
+  });
+
+  app.delete('/api/stories/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const storyId = req.params.id;
+
+      const deleted = await storage.deleteStory(storyId, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Story not found or unauthorized' });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting story:", error);
+      res.status(500).json({ message: "Failed to delete story" });
     }
   });
 

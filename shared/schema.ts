@@ -32,6 +32,11 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   bio: text("bio"),
   title: varchar("title"),
+  address: varchar("address"),
+  gender: varchar("gender"), // 'male', 'female', 'other', 'prefer_not_to_say'
+  dateOfBirth: timestamp("date_of_birth"),
+  phoneNumber: varchar("phone_number"),
+  otherLinks: jsonb("other_links"), // array of {platform: string, url: string}
   role: varchar("role").default("user"), // 'user' or 'admin'
   status: varchar("status").default("active"), // 'active', 'suspended', 'banned'
   createdAt: timestamp("created_at").defaultNow(),
@@ -68,6 +73,17 @@ export const likes = pgTable("likes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Stories table
+export const stories = pgTable("stories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text("content"),
+  imageUrl: varchar("image_url"),
+  videoUrl: varchar("video_url"),
+  expiresAt: timestamp("expires_at").notNull(), // 24 hours from creation
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Follows table
 export const follows = pgTable("follows", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -81,6 +97,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   posts: many(posts),
   comments: many(comments),
   likes: many(likes),
+  stories: many(stories),
   followers: many(follows, { relationName: 'following' }),
   following: many(follows, { relationName: 'follower' }),
 }));

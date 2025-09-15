@@ -101,11 +101,89 @@ export async function getAuthUserController(req: Request, res: Response) {
       profileImageUrl: (user as any).profileImageUrl,
       bio: (user as any).bio,
       title: (user as any).title,
+      address: (user as any).address,
+      gender: (user as any).gender,
+      dateOfBirth: (user as any).dateOfBirth,
+      phoneNumber: (user as any).phoneNumber,
+      otherLinks: (user as any).otherLinks,
       createdAt: (user as any).createdAt,
       updatedAt: (user as any).updatedAt,
     });
   } catch (error) {
     console.error('Get user error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function updateUserProfileController(req: Request, res: Response) {
+  try {
+    const userId = (req as any).user?.userId as string | undefined;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const {
+      firstName,
+      lastName,
+      profileImageUrl,
+      bio,
+      title,
+      address,
+      gender,
+      dateOfBirth,
+      phoneNumber,
+      otherLinks
+    } = req.body;
+
+    // Get current user data
+    const currentUser = await storage.getUser(userId);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update user profile
+    const updatedUser = await storage.upsertUser({
+      id: userId,
+      email: currentUser.email,
+      firstName: firstName ?? currentUser.firstName,
+      lastName: lastName ?? currentUser.lastName,
+      profileImageUrl: profileImageUrl ?? currentUser.profileImageUrl,
+      bio: bio ?? currentUser.bio,
+      title: title ?? currentUser.title,
+      address: address ?? (currentUser as any).address,
+      gender: gender ?? (currentUser as any).gender,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : (currentUser as any).dateOfBirth,
+      phoneNumber: phoneNumber ?? (currentUser as any).phoneNumber,
+      otherLinks: otherLinks ?? (currentUser as any).otherLinks,
+      role: currentUser.role,
+      status: currentUser.status,
+      createdAt: currentUser.createdAt,
+      updatedAt: new Date(),
+    });
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        firstName: (updatedUser as any).firstName,
+        lastName: (updatedUser as any).lastName,
+        role: (updatedUser as any).role ?? 'user',
+        status: (updatedUser as any).status ?? 'active',
+        profileImageUrl: (updatedUser as any).profileImageUrl,
+        bio: (updatedUser as any).bio,
+        title: (updatedUser as any).title,
+        address: (updatedUser as any).address,
+        gender: (updatedUser as any).gender,
+        dateOfBirth: (updatedUser as any).dateOfBirth,
+        phoneNumber: (updatedUser as any).phoneNumber,
+        otherLinks: (updatedUser as any).otherLinks,
+        createdAt: (updatedUser as any).createdAt,
+        updatedAt: (updatedUser as any).updatedAt,
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }
