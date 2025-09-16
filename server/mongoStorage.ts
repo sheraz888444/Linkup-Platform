@@ -111,6 +111,7 @@ async getUser(id: string): Promise<User | undefined> {
       userId: post.userId,
       content: post.content,
       imageUrl: post.imageUrl,
+      videoUrl: post.videoUrl,
       likesCount: post.likedBy?.length || 0,
       commentsCount: post.commentsCount || 0,
       createdAt: post.createdAt,
@@ -164,13 +165,13 @@ async getUser(id: string): Promise<User | undefined> {
     };
   }
 
-async createPost(post: InsertPost): Promise {
+async createPost(post: InsertPost): Promise<Post> {
     // Validate that post has required fields
     if (!post.userId || !post.content) {
         throw new Error("Post must have userId and content");
     }
     const posts = await this.getCollection('posts');
-    
+
     const postDoc = {
       _id: new ObjectId(),
       userId: post.userId,
@@ -183,12 +184,12 @@ async createPost(post: InsertPost): Promise {
     };
 
     await posts.insertOne(postDoc);
-    
-   {
+
+    return {
       id: postDoc._id.toString(),
       userId: postDoc.userId,
       content: postDoc.content,
-      
+      imageUrl: postDoc.imageUrl,
       likesCount: 0,
       commentsCount: 0,
       createdAt: postDoc.createdAt,

@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb';
 import { getDatabase } from './mongodb';
+import { InsertPost, InsertComment } from '@shared/schema';
 
 // ====================
 // MongoDB Document Interfaces
@@ -22,13 +23,16 @@ interface MongoUser {
   createdAt: Date;
   updatedAt: Date;
 }
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
 
 interface MongoPost {
   _id: string;
   userId: string;
   content: string;
-  imageUrl?: string;
-  videoUrl?: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
   likedBy: string[];
   commentsCount: number;
   createdAt: Date;
@@ -95,16 +99,15 @@ export interface Post {
   id: string;
   userId: string;
   content: string;
-  imageUrl?: string;
-  videoUrl?: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
   likesCount: number;
   commentsCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type InsertPost = import('@shared/schema').InsertPost & { userId: string };
-export type InsertComment = import('@shared/schema').InsertComment & { postId: string; userId: string; };
+
 
 export interface Comment {
   id: string;
@@ -165,7 +168,7 @@ export class MongoStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const users = await this.getCollection('users');
     const user = await users.findOne({ _id: id } as any);
-    return user ? this.mapUserFromMongo(user as MongoUser) : undefined;
+    return user ? this.mapUserFromMongo(user as unknown as MongoUser) : undefined;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -223,8 +226,8 @@ export class MongoStorage implements IStorage {
       id: (post as any)._id,
       userId: (post as any).userId,
       content: (post as any).content,
-      imageUrl: (post as any).imageUrl || null,
-      videoUrl: (post as any).videoUrl || null,
+      imageUrl: toOptionalString((post as any).imageUrl),
+      videoUrl: toOptionalString((post as any).videoUrl),
       likesCount: (post as any).likedBy?.length || 0,
       commentsCount: (post as any).commentsCount || 0,
       createdAt: (post as any).createdAt,
@@ -263,8 +266,8 @@ export class MongoStorage implements IStorage {
       id: (post as any)._id,
       userId: (post as any).userId,
       content: (post as any).content,
-      imageUrl: (post as any).imageUrl || null,
-      videoUrl: (post as any).videoUrl || null,
+      imageUrl: toOptionalString((post as any).imageUrl),
+      videoUrl: toOptionalString((post as any).videoUrl),
       likesCount: (post as any).likedBy?.length || 0,
       commentsCount: (post as any).commentsCount || 0,
       createdAt: (post as any).createdAt,
@@ -394,10 +397,10 @@ export class MongoStorage implements IStorage {
     const isLiked = likedBy.includes(userId);
 
     if (isLiked) {
-      await posts.updateOne({ _id: postId } as any, { $pull: { likedBy: userId } });
+      await posts.updateOne({ _id: postId } as any, { $pull: { likedBy: userId } } as any);
       return { liked: false, likesCount: Math.max(0, likedBy.length - 1) };
     } else {
-      await posts.updateOne({ _id: postId } as any, { $addToSet: { likedBy: userId } });
+      await posts.updateOne({ _id: postId } as any, { $addToSet: { likedBy: userId } } as any);
       return { liked: true, likesCount: likedBy.length + 1 };
     }
   }
