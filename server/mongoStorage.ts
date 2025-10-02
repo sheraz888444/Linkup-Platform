@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import { getDatabase } from './mongodb';
+import { connectToDatabase, getDatabase } from './mongodb';
 import type { 
   User, 
   UpsertUser, 
@@ -36,6 +36,13 @@ export interface IStorage {
   isFollowing(followerId: string, followingId: string): Promise<boolean>;
   getUserFollowersCount(userId: string): Promise<number>;
   getUserFollowingCount(userId: string): Promise<number>;
+
+  // Friend operations
+  sendFriendRequest(fromUserId: string, toUserId: string): Promise<boolean>;
+  acceptFriendRequest(userId: string, requestingUserId: string): Promise<boolean>;
+  rejectFriendRequest(userId: string, requestingUserId: string): Promise<boolean>;
+  removeFriend(userId: string, friendId: string): Promise<boolean>;
+  getFriends(userId: string): Promise<User[]>;
 }
 
 export class MongoStorage implements IStorage {
@@ -156,6 +163,7 @@ async getUser(id: string): Promise<User | undefined> {
       userId: post.userId,
       content: post.content,
       imageUrl: post.imageUrl,
+      videoUrl: post.videoUrl,
       likesCount: post.likedBy?.length || 0,
       commentsCount: post.commentsCount || 0,
       createdAt: post.createdAt,
@@ -176,7 +184,8 @@ async createPost(post: InsertPost): Promise<Post> {
       _id: new ObjectId(),
       userId: post.userId,
       content: post.content,
-      imageUrl: post.imageUrl,
+      imageUrl: post.imageUrl ?? null,
+      videoUrl: post.videoUrl ?? null,
       likedBy: [],
       commentsCount: 0,
       createdAt: new Date(),
@@ -190,6 +199,7 @@ async createPost(post: InsertPost): Promise<Post> {
       userId: postDoc.userId,
       content: postDoc.content,
       imageUrl: postDoc.imageUrl,
+      videoUrl: postDoc.videoUrl,
       likesCount: 0,
       commentsCount: 0,
       createdAt: postDoc.createdAt,
@@ -199,14 +209,15 @@ async createPost(post: InsertPost): Promise<Post> {
 
   async deletePost(id: string, userId: string): Promise<boolean> {
     const posts = await this.getCollection('posts');
-    const result = await posts.deleteOne({ _id: new ObjectId(id), userId });
-    
-    // Also delete related likes and comments
-    const likes = await this.getCollection('likes');
+    const postId = new ObjectId(id);
+    const result = await posts.deleteOne({ _id: postId, userId });
+
+    if (result.deletedCount === 0) {
+      return false;
+    }
+    // Also delete related comments
     const comments = await this.getCollection('comments');
-    
-    await likes.deleteMany({ postId: new ObjectId(id) });
-    await comments.deleteMany({ postId: new ObjectId(id) });
+    await comments.deleteMany({ postId: postId });
     
     return result.deletedCount > 0;
   }
@@ -217,7 +228,7 @@ async createPost(post: InsertPost): Promise<Post> {
     const users = await this.getCollection('users');
     
     const pipeline = [
-      { $match: { postId } },
+      { $match: { postId: new ObjectId(postId) } },
       {
         $lookup: {
           from: 'users',
@@ -251,7 +262,7 @@ async createPost(post: InsertPost): Promise<Post> {
     const posts = await this.getCollection('posts');
     
     const commentDoc = {
-      _id: new ObjectId().toString(),
+      _id: new ObjectId(),
       postId: comment.postId,
       userId: comment.userId,
       content: comment.content,
@@ -262,12 +273,12 @@ async createPost(post: InsertPost): Promise<Post> {
     
     // Increment comments count
     await posts.updateOne(
-      { _id: comment.postId },
+      { _id: new ObjectId(comment.postId) },
       { $inc: { commentsCount: 1 } }
     );
 
     return {
-      id: commentDoc._id,
+      id: commentDoc._id.toString(),
       postId: commentDoc.postId,
       userId: commentDoc.userId,
       content: commentDoc.content,
@@ -279,15 +290,16 @@ async createPost(post: InsertPost): Promise<Post> {
     const comments = await this.getCollection('comments');
     const posts = await this.getCollection('posts');
     
-    const comment = await comments.findOne({ _id: id, userId });
+    const commentId = new ObjectId(id);
+    const comment = await comments.findOne({ _id: commentId, userId });
     if (!comment) return false;
 
-    const result = await comments.deleteOne({ _id: id, userId });
+    const result = await comments.deleteOne({ _id: commentId, userId });
     
     if (result.deletedCount > 0) {
       // Decrement comments count
       await posts.updateOne(
-        { _id: comment.postId },
+        { _id: new ObjectId(comment.postId) },
         { $inc: { commentsCount: -1 } }
       );
     }
@@ -298,7 +310,8 @@ async createPost(post: InsertPost): Promise<Post> {
   // Like operations
   async toggleLike(postId: string, userId: string): Promise<{ liked: boolean; likesCount: number }> {
     const posts = await this.getCollection('posts');
-    const post = await posts.findOne({ _id: postId });
+    const postObjectId = new ObjectId(postId);
+    const post = await posts.findOne({ _id: postObjectId });
     
     if (!post) {
       throw new Error('Post not found');
@@ -310,9 +323,9 @@ async createPost(post: InsertPost): Promise<Post> {
     if (isLiked) {
       // Unlike
       await posts.updateOne(
-        { _id: postId },
+        { _id: postObjectId },
         { 
-          $pull: { likedBy: userId },
+          $pull: { likedBy: userId } as any, // Use `as any` to bypass strict BSON type checking for $pull
           $inc: { likesCount: -1 }
         }
       );
@@ -320,7 +333,7 @@ async createPost(post: InsertPost): Promise<Post> {
     } else {
       // Like
       await posts.updateOne(
-        { _id: postId },
+        { _id: postObjectId },
         { 
           $addToSet: { likedBy: userId },
           $inc: { likesCount: 1 }
@@ -332,7 +345,7 @@ async createPost(post: InsertPost): Promise<Post> {
 
   async isPostLiked(postId: string, userId: string): Promise<boolean> {
     const posts = await this.getCollection('posts');
-    const post = await posts.findOne({ _id: postId });
+    const post = await posts.findOne({ _id: new ObjectId(postId) });
     
     return post?.likedBy?.includes(userId) || false;
   }
@@ -352,8 +365,8 @@ async createPost(post: InsertPost): Promise<Post> {
       return { following: false };
     } else {
       // Follow
-      await follows.insertOne({
-        _id: new ObjectId().toString(),
+      await follows.insertOne({ // This could be a separate collection
+        _id: new ObjectId(),
         followerId,
         followingId,
         createdAt: new Date(),
@@ -382,6 +395,84 @@ async createPost(post: InsertPost): Promise<Post> {
     return await follows.countDocuments({ followerId: userId });
   }
 
+  // Friend operations
+  async sendFriendRequest(fromUserId: string, toUserId: string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    // Add to the recipient's friendRequests array
+    const result = await users.updateOne(
+      { _id: new ObjectId(toUserId), friendRequests: { $ne: fromUserId }, friends: { $ne: fromUserId } },
+      { $addToSet: { friendRequests: fromUserId } }
+    );
+    return result.modifiedCount > 0;
+  }
+
+  async acceptFriendRequest(userId: string, requestingUserId: string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    const { client } = await connectToDatabase();
+    const session = client.startSession();
+    let success = false;
+    try {
+      await session.withTransaction(async () => {
+        // 1. Remove from my friendRequests
+        const res1 = await users.updateOne(
+          { _id: new ObjectId(userId) },
+          { $pull: { friendRequests: requestingUserId } as any},
+          { session }
+        );
+
+        // 2. Add to my friends list
+        const res2 = await users.updateOne(
+          { _id: new ObjectId(userId) },
+          { $addToSet: { friends: requestingUserId } },
+          { session }
+        );
+
+        // 3. Add me to their friends list
+        const res3 = await users.updateOne(
+          { _id: new ObjectId(requestingUserId) },
+          { $addToSet: { friends: userId } },
+          { session }
+        );
+
+        if (res1.modifiedCount > 0 && res2.modifiedCount > 0 && res3.modifiedCount > 0) {
+          success = true;
+        } else {
+          // If something failed, abort the transaction
+          await session.abortTransaction();
+        }
+      });
+    } finally {
+      await session.endSession();
+    }
+    return success;
+  }
+
+  async rejectFriendRequest(userId: string, requestingUserId:string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    const result = await users.updateOne(
+      { _id: new ObjectId(userId) },
+      { $pull: { friendRequests: requestingUserId } as any}
+    );
+    return result.modifiedCount > 0;
+  }
+
+  async removeFriend(userId: string, friendId: string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    // Remove from both users' friends lists
+    const res1 = await users.updateOne({ _id: new ObjectId(userId) }, { $pull: { friends: friendId } as any });
+    const res2 = await users.updateOne({ _id: new ObjectId(friendId) }, { $pull: { friends: userId } as any });
+    return res1.modifiedCount > 0 && res2.modifiedCount > 0;
+  }
+
+  async getFriends(userId: string): Promise<User[]> {
+    const users = await this.getCollection('users');
+    const user = await users.findOne({ _id: new ObjectId(userId) });
+    if (!user || !user.friends) return [];
+    const friendIds = user.friends.map((id: string) => new ObjectId(id));
+    const friends = await users.find({ _id: { $in: friendIds } }).toArray();
+    return friends.map(this.mapUserFromMongo);
+  }
+
   private mapUserFromMongo(mongoUser: any): User {
     return {
       id: mongoUser._id,
@@ -391,6 +482,13 @@ async createPost(post: InsertPost): Promise<Post> {
       profileImageUrl: mongoUser.profileImageUrl,
       bio: mongoUser.bio,
       title: mongoUser.title,
+      address: mongoUser.address,
+      gender: mongoUser.gender,
+      dateOfBirth: mongoUser.dateOfBirth,
+      phoneNumber: mongoUser.phoneNumber,
+      otherLinks: mongoUser.otherLinks,
+      role: mongoUser.role,
+      status: mongoUser.status,
       createdAt: mongoUser.createdAt,
       updatedAt: mongoUser.updatedAt,
     };

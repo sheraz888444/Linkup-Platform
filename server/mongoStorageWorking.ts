@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import { getDatabase } from './mongodb';
+import { connectToDatabase, getDatabase } from './mongodb';
 import { InsertPost, InsertComment } from '@shared/schema';
 
 // ====================
@@ -74,6 +74,8 @@ export interface User {
   status?: 'active' | 'suspended' | 'banned';
   createdAt: Date;
   updatedAt: Date;
+  friends?: string[];
+  friendRequests?: string[];
 }
 
 export interface UpsertUser {
@@ -149,6 +151,13 @@ export interface IStorage {
   isFollowing(followerId: string, followingId: string): Promise<boolean>;
   getUserFollowersCount(userId: string): Promise<number>;
   getUserFollowingCount(userId: string): Promise<number>;
+
+  // Friend operations
+  sendFriendRequest(fromUserId: string, toUserId: string): Promise<boolean>;
+  acceptFriendRequest(userId: string, requestingUserId: string): Promise<boolean>;
+  rejectFriendRequest(userId: string, requestingUserId: string): Promise<boolean>;
+  removeFriend(userId: string, friendId: string): Promise<boolean>;
+  getFriends(userId: string): Promise<User[]>;
 
   getStories(userId?: string): Promise<any[]>;
   createStory(story: any): Promise<any>;
@@ -509,6 +518,86 @@ export class MongoStorage implements IStorage {
     const stories = await this.getCollection('stories');
     const result = await stories.deleteOne({ _id: id, userId } as any);
     return result.deletedCount > 0;
+  }
+
+  // ----- Friends -----
+  async sendFriendRequest(fromUserId: string, toUserId: string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    // Add to the recipient's friendRequests array
+    const result = await users.updateOne(
+      { _id: toUserId, friendRequests: { $ne: fromUserId }, friends: { $ne: fromUserId } } as any,
+      { $addToSet: { friendRequests: fromUserId } } as any
+    );
+    return result.modifiedCount > 0;
+  }
+
+  async acceptFriendRequest(userId: string, requestingUserId: string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    const { client } = await connectToDatabase();
+    const session = client.startSession();
+    let success = false;
+    try {
+      await session.withTransaction(async () => {
+        // 1. Remove from my friendRequests
+        const res1 = await users.updateOne(
+          { _id: userId } as any,
+          { $pull: { friendRequests: requestingUserId } as any },
+          { session }
+        );
+
+        // 2. Add to my friends list
+        const res2 = await users.updateOne(
+          { _id: userId } as any,
+          { $addToSet: { friends: requestingUserId } as any },
+          { session }
+        );
+
+        // 3. Add me to their friends list
+        const res3 = await users.updateOne(
+          { _id: requestingUserId } as any,
+          { $addToSet: { friends: userId } as any },
+          { session }
+        );
+
+        if (res1.modifiedCount > 0 && res2.modifiedCount > 0 && res3.modifiedCount > 0) {
+          success = true;
+        } else {
+          // If something failed, abort the transaction
+          await session.abortTransaction();
+        }
+      });
+    } finally {
+      await session.endSession();
+    }
+    return success;
+  }
+
+  async rejectFriendRequest(userId: string, requestingUserId: string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    const result = await users.updateOne(
+      { _id: userId } as any,
+      { $pull: { friendRequests: requestingUserId } as any }
+    );
+    return result.modifiedCount > 0;
+  }
+
+  async removeFriend(userId: string, friendId: string): Promise<boolean> {
+    const users = await this.getCollection('users');
+    // Remove from both users' friends lists
+    const res1 = await users.updateOne({ _id: userId } as any, { $pull: { friends: friendId } as any });
+    const res2 = await users.updateOne({ _id: friendId } as any, { $pull: { friends: userId } as any });
+    return res1.modifiedCount > 0 && res2.modifiedCount > 0;
+  }
+
+  async getFriends(userId: string): Promise<User[]> {
+    const users = await this.getCollection('users');
+    const user = await users.findOne({ _id: userId } as any);
+    if (!user || !user.friends) {
+      return [];
+    }
+    const friendIds = user.friends;
+    const friends = await users.find({ _id: { $in: friendIds } } as any).toArray();
+    return friends.map(f => this.mapUserFromMongo(f as unknown as MongoUser));
   }
 
   // ----- Utils -----
